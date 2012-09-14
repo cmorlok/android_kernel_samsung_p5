@@ -1689,9 +1689,6 @@ EXPORT_SYMBOL(mmc_erase);
 int mmc_can_erase(struct mmc_card *card)
 {
 	printk("%s: called\n",__func__);
-	if ((card->host->caps & MMC_CAP_ERASE) &&
-	    (card->csd.cmdclass & CCC_ERASE) && card->erase_size)
-		return 1;
 	return 0;
 }
 EXPORT_SYMBOL(mmc_can_erase);
