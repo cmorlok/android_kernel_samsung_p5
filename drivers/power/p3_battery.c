@@ -406,7 +406,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 		!battery->info.batt_is_recharging &&  /* Not Recharging */
 		(battery->info.charging_source == CHARGER_AC ||
 		(battery->info.charging_source == CHARGER_USB &&
-		battery->info.force_usb_charging)) &&
+		 battery->info.force_usb_charging)) &&
 		!battery->is_first_check &&  /* Skip first check */
 		(fg_vfsoc > 70 && (fg_current > 20 && fg_current < 250) &&
 		(avg_current > 20 && avg_current < 260))) {
@@ -425,7 +425,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 	} else
 		battery->full_check_flag = 0;
 
-	 if ((battery->info.charging_source == CHARGER_AC ||
+	if ((battery->info.charging_source == CHARGER_AC ||
 	    (battery->info.charging_source == CHARGER_USB &&
 	     battery->info.force_usb_charging)) &&
 		battery->info.batt_improper_ta == 0) {
@@ -678,7 +678,17 @@ static int p3_bat_get_charging_status(struct battery_data *battery)
 	switch (battery->info.charging_source) {
 	case CHARGER_BATTERY:
 	case CHARGER_USB:
-		return POWER_SUPPLY_STATUS_DISCHARGING;
+		if (battery->info.force_usb_charging) {
+			if (battery->current_cable_status != CHARGER_BATTERY) {
+				if (battery->info.batt_is_full || battery->info.level == 100)
+					return POWER_SUPPLY_STATUS_FULL;
+				else if(!battery->info.batt_is_full || battery->info.level != 100)
+					return POWER_SUPPLY_STATUS_CHARGING;
+				} else
+					return POWER_SUPPLY_STATUS_DISCHARGING;
+				} else {
+					return POWER_SUPPLY_STATUS_DISCHARGING;
+				}
 	case CHARGER_AC:
 		if (battery->info.batt_is_full)
 			return POWER_SUPPLY_STATUS_FULL;
@@ -1430,8 +1440,8 @@ static int __devinit p3_bat_probe(struct platform_device *pdev)
 
 	/* before enable fullcharge interrupt, check fullcharge */
 	if ((battery->info.charging_source == CHARGER_AC ||
-	   (battery->info.charging_source == CHARGER_USB &&
-	    battery->info.force_usb_charging))
+	    (battery->info.charging_source == CHARGER_USB &&
+	     battery->info.force_usb_charging))
 		&& battery->info.charging_enabled
 		&& gpio_get_value(pdata->charger.fullcharge_line) == 1)
 		p3_cable_charging(battery);
