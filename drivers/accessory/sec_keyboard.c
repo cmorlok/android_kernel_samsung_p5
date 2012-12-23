@@ -315,6 +315,9 @@ int check_keyboard_dock(bool val)
 EXPORT_SYMBOL(send_keyevent);
 EXPORT_SYMBOL(check_keyboard_dock);
 
+	printk(KERN_DEBUG "[Keyboard] %s, capslock on led value=%d\n",\
+		 __func__, value);
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void keyboard_early_suspend(struct early_suspend *early_sus)
 {
