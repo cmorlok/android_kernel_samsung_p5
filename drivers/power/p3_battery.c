@@ -39,6 +39,7 @@
 
 #define FAST_POLL	40	/* 40 sec */
 #define SLOW_POLL	(30*60)	/* 30 min */
+#define FULL_TIME_IN_MAX	10
 
 static char *supply_list[] = {
 	"battery",
@@ -117,6 +118,7 @@ struct battery_data {
 	int previous_charging_status;
 	int full_check_flag;
 	bool is_first_check;
+	int charging_in_full;
 };
 
 struct battery_data *test_batterydata;
@@ -127,6 +129,19 @@ int lpm_mode_flag;
 EXPORT_SYMBOL(lpm_mode_flag);
 #endif
 
+/* sys fs */
+struct class *jig_class;
+EXPORT_SYMBOL(jig_class);
+struct device *jig_dev;
+EXPORT_SYMBOL(jig_dev);
+static ssize_t jig_show(struct device *dev, struct device_attribute *attr, char *buf);
+static DEVICE_ATTR(jig , S_IRUGO | S_IWUSR | S_IWGRP | S_IXOTH, jig_show, NULL);
+
+static ssize_t jig_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", check_jig_on());
+}
+/* sys fs */
 static void p3_set_chg_en(struct battery_data *battery, int enable);
 static void p3_cable_changed(struct battery_data *battery);
 static ssize_t p3_bat_show_property(struct device *dev,
@@ -345,7 +360,9 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 	int avg_current;
 	int recover_flag = 0;
 
+#if 0	/* no need for FG Recovery */
 	recover_flag = fg_check_cap_corruption();
+#endif
 
 	/* check VFcapacity every five minutes */
 	if (!(battery->fg_chk_cnt++ % 10)) {
@@ -359,6 +376,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 		fg_soc = battery->info.level;
 	}
 
+#if 0	/* no need for FG Recovery */
 	if (!check_jig_on() && !max17042_chip_data->info.low_batt_comp_flag) {
 		if (((fg_soc+5) < max17042_chip_data->info.previous_repsoc) ||
 			(fg_soc > (max17042_chip_data->info.previous_repsoc+5)))
@@ -376,6 +394,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 			battery->fg_skip_cnt = 0;
 		}
 	}
+#endif
 
 	if (battery->low_batt_boot_flag) {
 		fg_soc = 0;
@@ -486,6 +505,12 @@ __end__:
 			fg_soc = 99;
 	}
 #endif
+
+	if (fg_soc == 100 && battery->info.charging_enabled)
+		battery->charging_in_full++;
+	else
+		battery->charging_in_full = 0;
+
 	return fg_soc;
 }
 
@@ -645,7 +670,8 @@ static int p3_bat_get_charging_status(struct battery_data *battery)
 	case CHARGER_USB:
 		return POWER_SUPPLY_STATUS_NOT_CHARGING;
 	case CHARGER_AC:
-		if (battery->info.batt_is_full)
+		if ((battery->info.batt_is_full) ||
+			(battery->charging_in_full > FULL_TIME_IN_MAX))
 			return POWER_SUPPLY_STATUS_FULL;
 		else if (battery->info.batt_improper_ta)
 			return POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -662,7 +688,8 @@ static int p3_bat_get_charging_status(struct battery_data *battery)
 	case CHARGER_USB:
 		return POWER_SUPPLY_STATUS_DISCHARGING;
 	case CHARGER_AC:
-		if (battery->info.batt_is_full)
+		if ((battery->info.batt_is_full) ||
+			(battery->charging_in_full > FULL_TIME_IN_MAX))
 			return POWER_SUPPLY_STATUS_FULL;
 		else if (battery->info.batt_improper_ta)
 			return POWER_SUPPLY_STATUS_DISCHARGING;
@@ -781,6 +808,7 @@ static struct device_attribute p3_battery_attrs[] = {
 	SEC_BATTERY_ATTR(voltage_now),
 #endif
 	SEC_BATTERY_ATTR(fg_capacity),
+	SEC_BATTERY_ATTR(jig_on),	
 };
 
 enum {
@@ -802,6 +830,7 @@ enum {
 	VOLTAGE_NOW,
 #endif
 	FG_CAPACITY,
+	JIG_ON,
 };
 
 static int p3_bat_create_attrs(struct device *dev)
@@ -890,6 +919,10 @@ static ssize_t p3_bat_show_property(struct device *dev,
 				get_fuelgauge_capacity(CAPACITY_TYPE_MIX),
 				get_fuelgauge_capacity(CAPACITY_TYPE_AV),
 				get_fuelgauge_capacity(CAPACITY_TYPE_REP));
+		break;
+	case JIG_ON:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+			check_jig_on());
 		break;
 	default:
 		i = -EINVAL;
@@ -1278,7 +1311,7 @@ static int __devinit p3_bat_probe(struct platform_device *pdev)
 	battery->info.batt_health = POWER_SUPPLY_HEALTH_GOOD;
 	battery->info.abstimer_is_active = 0;
 	battery->is_first_check = true;
-
+	battery->charging_in_full = 0;
 
 	battery->psy_battery.name = "battery";
 	battery->psy_battery.type = POWER_SUPPLY_TYPE_BATTERY;
@@ -1352,6 +1385,19 @@ static int __devinit p3_bat_probe(struct platform_device *pdev)
 
 	/* create sec detail attributes */
 	p3_bat_create_attrs(battery->psy_battery.dev);
+
+ /* sys fs */
+	jig_class = class_create(THIS_MODULE, "jig");
+	if (IS_ERR(jig_class))
+		pr_err("Failed to create class(jig)!\n");
+
+	jig_dev = device_create(jig_class, NULL, 0, NULL, "jig");
+	if (IS_ERR(jig_dev))
+		pr_err("Failed to create device(jig)!\n");
+
+	if (device_create_file(jig_dev, &dev_attr_jig) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_jig.attr.name);
+/* sys fs */
 
 	battery->p3_battery_initial = 1;
 	battery->low_batt_boot_flag = 0;

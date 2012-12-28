@@ -31,8 +31,8 @@
 //============================================================
 
 #include "Master_bin_V43.c"
-#ifdef CONFIG_MACH_SAMSUNG_P5KORWIFI
-#include "Master_bin_V60_KOR.c"
+#ifdef CONFIG_MACH_SAMSUNG_P5W_KT
+#include "Master_bin_V63.c"
 #else
 #include "Master_bin_V60.c"
 #endif

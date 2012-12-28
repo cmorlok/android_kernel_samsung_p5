@@ -795,10 +795,10 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 				       "0x%x, gso_size %d, hdr_len %d\n",
 				       sinfo->gso_type, gso.gso_size,
 				       gso.hdr_len);
-				print_hex_dump(KERN_ERR, "tun: ",
-					       DUMP_PREFIX_NONE,
-					       16, 1, skb->head,
-					       min((int)gso.hdr_len, 64), true);
+//				print_hex_dump(KERN_ERR, "tun: ",
+//					       DUMP_PREFIX_NONE,
+//					       16, 1, skb->head,
+//					       min((int)gso.hdr_len, 64), true);
 				WARN_ON_ONCE(1);
 				return -EINVAL;
 			}
