@@ -62,6 +62,9 @@
 #define USB_ETH_RNDIS y
 #include "f_rndis.c"
 #include "rndis.c"
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+#include "f_dm.c"
+#endif
 #include "u_ether.c"
 
 MODULE_AUTHOR("Mike Lockwood");
@@ -71,9 +74,16 @@ MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+static int composite_string_index;
+#endif
+
 /* Default vendor and product IDs, overridden by userspace */
 #define VENDOR_ID		0x18D1
 #define PRODUCT_ID		0x0001
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+#define DM_PORT_NUM            1
+#endif
 
 struct android_usb_function {
 	char *name;
@@ -794,7 +804,18 @@ static struct android_usb_function accessory_function = {
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
 
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+static int dm_function_bind_config(struct android_usb_function *f,
+					struct usb_configuration *c)
+{
+	return dm_bind_config(c, DM_PORT_NUM);
+}
 
+static struct android_usb_function dm_function = {
+	.name           = "dm",
+	.bind_config    = dm_function_bind_config,
+};
+#endif
 static struct android_usb_function *supported_functions[] = {
 	&adb_function,
 	&acm_function,
@@ -802,6 +823,9 @@ static struct android_usb_function *supported_functions[] = {
 	&ptp_function,
 	&rndis_function,
 	&accessory_function,
+#ifdef CONFIG_MACH_SAMSUNG_P4LTE
+	&dm_function,
+#endif
 	NULL
 };
 
@@ -951,6 +975,7 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 	char *name;
 	char buf[256], *b;
 	int err;
+	int check_rndis = 0;
 
 	mutex_lock(&dev->mutex);
 
@@ -982,6 +1007,23 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 					name);
 #endif
 			}
+#if defined(CONFIG_MACH_SAMSUNG_P4LTE)
+	if (!strcmp(name, "rndis"))
+		check_rndis = 1;
+	if (!strcmp(name, "adb")) {
+		if (!check_rndis) {
+			err = android_enable_function(dev, "acm");
+			if (err)
+				pr_err(
+					"android_usb: Cannot enable '%s'",
+			name);
+		}
+			err = android_enable_function(dev, "dm");
+			if (err)
+				pr_err(
+					"android_usb: Cannot enable 'dm'");
+			}
+#endif
 #endif
 		}
 	}
@@ -1015,8 +1057,10 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	if (enabled && !dev->enabled) {
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		struct android_usb_function *f;
-#endif
+		cdev->next_string_id = composite_string_index;
+#else
 		cdev->next_string_id = 0;
+#endif
 		/* update values in composite driver's copy of device descriptor */
 		cdev->desc.idVendor = device_desc.idVendor;
 		cdev->desc.idProduct = device_desc.idProduct;
@@ -1044,16 +1088,6 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 				sizeof(manufacturer_string) - 1);
 		strncpy(product_string, "SAMSUNG_Android",
 				sizeof(product_string) - 1);
-#endif
-#ifdef CONFIG_MACH_SAMSUNG_P3
-				/* cpu clock and sclk set max clock */
-				if (!clk_lock_status) {
-#ifdef CONFIG_TEGRA_CPU_FREQ_LOCK
-					tegra_cpu_lock_speed(1000000, 0);
-#endif /* CONFIG_TEGRA_CPU_FREQ_LOCK */
-					fsl_udc_lock_sclk(240000000);
-					clk_lock_status = true;
-				}
 #endif
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
@@ -1287,6 +1321,10 @@ static int android_bind(struct usb_composite_dev *cdev)
 	}
 
 	usb_gadget_set_selfpowered(gadget);
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	composite_string_index = 4;
+#endif
 
 	dev->cdev = cdev;
 
