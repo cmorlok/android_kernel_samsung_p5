@@ -40,6 +40,7 @@
 
 #define FAST_POLL	40	/* 40 sec */
 #define SLOW_POLL	(30*60)	/* 30 min */
+#define FULL_TIME_IN_MAX	10
 
 static char *supply_list[] = {
 	"battery",
@@ -130,6 +131,7 @@ struct battery_data {
 	int previous_charging_status;
 	int full_check_flag;
 	bool is_first_check;
+	int charging_in_full;
 };
 
 struct battery_data *test_batterydata;
@@ -287,7 +289,7 @@ static void p3_TA_work_handler(struct work_struct *work)
  * We fake the SOC on Fulll cap and let FG manage the differences on
  * long run.
  * Also during the start of recharging phase if the TA is disconnected SOC
- * can sudden;y drop down to a lower value. In that case also the user
+ * can suddenly drop down to a lower value. In that case also the user
  * expects to see a 100% so we update Full Cap again.
 */
 	if ((battery->previous_cable_status == CHARGER_AC) &&
@@ -373,7 +375,9 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 	int avg_current;
 	int recover_flag = 0;
 
+#if 0	/* no need for FG Recovery */
 	recover_flag = fg_check_cap_corruption();
+#endif
 
 	/* check VFcapacity every five minutes */
 	if (!(battery->fg_chk_cnt++ % 10)) {
@@ -387,6 +391,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 		fg_soc = battery->info.level;
 	}
 
+#if 0	/* no need for FG Recovery */
 	if (!check_jig_on() && !max17042_chip_data->info.low_batt_comp_flag) {
 		if (((fg_soc+5) < max17042_chip_data->info.previous_repsoc) ||
 			(fg_soc > (max17042_chip_data->info.previous_repsoc+5)))
@@ -404,6 +409,7 @@ static int p3_get_bat_level(struct power_supply *bat_ps)
 			battery->fg_skip_cnt = 0;
 		}
 	}
+#endif
 
 	if (battery->low_batt_boot_flag) {
 		fg_soc = 0;
@@ -533,6 +539,12 @@ __end__:
 			fg_soc = 99;
 	}
 #endif
+
+	if (fg_soc == 100 && battery->info.charging_enabled)
+		battery->charging_in_full++;
+	else
+		battery->charging_in_full = 0;
+
 	return fg_soc;
 }
 
@@ -729,7 +741,8 @@ static int p3_bat_get_charging_status(struct battery_data *battery)
 	case CHARGER_USB:
 		return POWER_SUPPLY_STATUS_NOT_CHARGING;
 	case CHARGER_AC:
-		if (battery->info.batt_is_full)
+		if ((battery->info.batt_is_full) ||
+			(battery->charging_in_full > FULL_TIME_IN_MAX))
 			return POWER_SUPPLY_STATUS_FULL;
 		else if (battery->info.batt_improper_ta)
 			return POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -746,7 +759,8 @@ static int p3_bat_get_charging_status(struct battery_data *battery)
 	case CHARGER_USB:
 		return POWER_SUPPLY_STATUS_DISCHARGING;
 	case CHARGER_AC:
-		if (battery->info.batt_is_full)
+		if ((battery->info.batt_is_full) ||
+			(battery->charging_in_full > FULL_TIME_IN_MAX))
 			return POWER_SUPPLY_STATUS_FULL;
 		else if (battery->info.batt_improper_ta)
 			return POWER_SUPPLY_STATUS_DISCHARGING;
@@ -1487,6 +1501,7 @@ static int __devinit p3_bat_probe(struct platform_device *pdev)
 	battery->info.batt_health = POWER_SUPPLY_HEALTH_GOOD;
 	battery->info.abstimer_is_active = 0;
 	battery->is_first_check = true;
+	battery->charging_in_full = 0;
 
 	battery->psy_battery.name = "battery";
 	battery->psy_battery.type = POWER_SUPPLY_TYPE_BATTERY;
