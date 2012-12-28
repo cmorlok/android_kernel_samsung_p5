@@ -1723,9 +1723,9 @@ int __init dm_interface_init(void)
 		return r;
 	}
 
-	DMINFO("%d.%d.%d%s initialised: %s", DM_VERSION_MAJOR,
+	/*DMINFO("%d.%d.%d%s initialised: %s", DM_VERSION_MAJOR,
 	       DM_VERSION_MINOR, DM_VERSION_PATCHLEVEL, DM_VERSION_EXTRA,
-	       DM_DRIVER_EMAIL);
+	       DM_DRIVER_EMAIL);*/
 	return 0;
 }
 

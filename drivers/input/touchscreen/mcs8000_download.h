@@ -20,22 +20,24 @@
 #define ILJIN_BASE_FW_VER	0x57
 
 #define MELFAS_FW_VER	0x43
+#ifdef CONFIG_MACH_SAMSUNG_P5W_KT
+#define ILJIN_FW_VER	0x63
+#else
 #define ILJIN_FW_VER	0x60
-
+#endif
 #define MEL_CORE_FW_VER  0x08
 #define MEL_PRIVATE_FW_VER 0x16
 #define MEL_PUBLIC_FW_VER 0x11
 
-#ifdef CONFIG_MACH_SAMSUNG_P5KORWIFI
-#define ILJ_CORE_FW_VER  0x08
-#define ILJ_PRIVATE_FW_VER 0x20
-#define ILJ_PUBLIC_FW_VER 0x13
+#ifdef CONFIG_MACH_SAMSUNG_P5W_KT
+#define ILJ_CORE_FW_VER  0x43
+#define ILJ_PRIVATE_FW_VER 0x23
+#define ILJ_PUBLIC_FW_VER 0x16
 #else
 #define ILJ_CORE_FW_VER  0x08
 #define ILJ_PRIVATE_FW_VER 0x16
 #define ILJ_PUBLIC_FW_VER 0x11
-
-#endif 
+#endif
 
 
 //=====================================================================

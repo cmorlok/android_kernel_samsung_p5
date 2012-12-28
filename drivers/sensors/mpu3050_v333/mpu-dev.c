@@ -264,7 +264,9 @@ static int mpu_open(struct inode *inode, struct file *file)
 	    (struct mpu_private_data *)i2c_get_clientdata(this_client);
 	struct mldl_cfg *mldl_cfg = &mpu->mldl_cfg;
 
-#if defined(CONFIG_MACH_SAMSUNG_P4) || defined(CONFIG_MACH_SAMSUNG_P5)
+#if defined(CONFIG_MACH_SAMSUNG_P4) || defined(CONFIG_MACH_SAMSUNG_P5) \
+			|| defined(CONFIG_MACH_SAMSUNG_P4WIFI) \
+			|| defined(CONFIG_MACH_SAMSUNG_P4LTE)
 	accel_open_calibration();
 #endif
 
