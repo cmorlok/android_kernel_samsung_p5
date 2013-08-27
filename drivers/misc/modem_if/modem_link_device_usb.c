@@ -34,7 +34,6 @@
 
 #define URB_COUNT	4
 #if defined(CONFIG_MACH_SAMSUNG_P4LTE)
-static usb_modem_state;
 #endif
 extern int lte_airplain_mode;
 static int wakelock_held;
@@ -818,12 +817,10 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 
 		usb_change_modem_state(usb_ld, STATE_ONLINE);
 #if defined(CONFIG_MACH_SAMSUNG_P4LTE)
-		usb_modem_state = 0;
 #endif
 	} else {
 		usb_change_modem_state(usb_ld, STATE_LOADER_DONE);
 #if defined(CONFIG_MACH_SAMSUNG_P4LTE)
-		usb_modem_state = 1;
 #endif
 	}
 
@@ -839,17 +836,7 @@ out:
 }
 
 #if defined(CONFIG_MACH_SAMSUNG_P4LTE)
-void change_modem_state(struct usb_link_device *usb_ld, enum modem_state state)
-{
-	usb_change_modem_state(usb_ld, state);
-
-	if (state == STATE_BOOTING)
-		usb_modem_state = 0; /* Reset usb_modem_state varible */
-
-	return 0;
-}
 #endif
-
 int usb_make_resume(struct usb_link_device *usb_ld)
 {
 	struct device *dev = &usb_ld->usbdev->dev;
